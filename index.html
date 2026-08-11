@@ -526,7 +526,7 @@
         const promptText = `
 Role: Senior Portfolio Manager & Quantitative Equity Analyst (Taiwan Market).
 
-Objective: Conduct a concise, data-driven analysis for each individual stock. Provide explicit trading recommendations. Do not provide a general market overview.
+Objective: Conduct a concise, data-driven analysis for each individual stock. Provide explicit trading recommendations.
 
 Portfolio Data:
 - Total Capital: NTD ${appState.capital}
@@ -534,15 +534,15 @@ Portfolio Data:
 - Watchlist: ${JSON.stringify(watchlist)}
 
 Analytical Framework & Instructions:
-1. Focus on Individual Stocks: Conduct web searches for recent events, earnings, and revenue reports for each listed Taiwan stock (using both the stock symbol and stock name provided in the JSON).
-2. Quantitative Evidence: Every recommendation MUST be supported by specific data (e.g., historical valuation, revenue metrics) and explicitly cite the underlying news sources or financial data providers.
-3. Concise Output Structure:
+1. Focus on Individual Stocks: Conduct web searches for recent events, earnings, and revenue reports for each listed Taiwan stock.
+2. Quantitative Evidence: Every recommendation MUST be supported by specific data.
+3. Strict Exclusions: Do NOT include an Executive Market Brief (執行市場摘要) or a Capital Allocation & Risk Management Plan (資金配置與風險管理計畫).
+4. Output Structure:
    - Ticker-by-Ticker Analysis:
      * Company: [Symbol] [Stock Name]
      * Decision: [Buy / Hold / Sell / Trim]
      * Rationale: Concise rationale linking recent data with historical benchmarks.
-     * Sources: Specific citations supporting the rationale.
-   - Concise Portfolio Summary: A brief, bottom-line summary of action items. Do not evaluate the overall macro market.
+     * Sources: Specific citations supporting the rationale, MUST include the exact source URL.
 
 Language Constraint: Respond in professional Traditional Chinese.
 `;
