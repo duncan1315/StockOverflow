@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taiwan Stock Portfolio & AI Analyst</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --card-bg: #1e293b;
+            --text-color: #f8fafc;
+            --accent-color: #38bdf8;
+            --border-color: #334155;
+            --success-color: #22c55e;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1, h2, h3 {
+            color: var(--accent-color);
+            margin-top: 0;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 0.9rem;
+            color: #94a3b8;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background-color: #0f172a;
+            color: #fff;
+            box-sizing: border-box;
+            margin-bottom: 12px;
+        }
+
+        button {
+            background-color: #2563eb;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #1d4ed8;
+        }
+
+        button.secondary {
+            background-color: #475569;
+        }
+
+        button.secondary:hover {
+            background-color: #334155;
+        }
+
+        button.danger {
+            background-color: var(--danger-color);
+        }
+
+        button.danger:hover {
+            background-color: #dc2626;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            color: #94a3b8;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .positive {
+            color: var(--danger-color);
+        }
+
+        .negative {
+            color: var(--success-color);
+        }
+
+        .ai-output {
+            white-space: pre-wrap;
+            line-height: 1.6;
+            background-color: #0f172a;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+        }
+
+        .action-btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .action-btn-group button {
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Taiwan Stock Portfolio & AI Advisory</h1>
+
+    <!-- API Keys Configuration -->
+    <div class="card">
+        <h2>API Configurations</h2>
+        <div class="grid-2">
+            <div>
+                <label for="geminiApiKey">Google Gemini API Key (Required for AI Analysis)</label>
+                <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key">
+            </div>
+            <div>
+                <label for="finmindToken">FinMind API Token (Optional, for public data)</label>
+                <input type="password" id="finmindToken" placeholder="Enter FinMind Token if available">
+            </div>
+        </div>
+        <button id="saveApiKeysBtn" class="secondary">Save API Configurations</button>
+    </div>
+
+    <!-- Capital Overview & Management -->
+    <div class="grid-3">
+        <div class="card">
+            <label>Total Available Capital (NTD)</label>
+            <div class="stat-value" id="displayCapital">0</div>
+            <div style="margin-top: 10px;">
+                <input type="number" id="inputCapital" placeholder="Set Capital Budget">
+                <button id="updateCapitalBtn">Update Capital</button>
+            </div>
+        </div>
+        <div class="card">
+            <label>Current Holdings Value</label>
+            <div class="stat-value" id="displayHoldingsValue">0</div>
+        </div>
+        <div class="card">
+            <label>Remaining Unallocated Capital</label>
+            <div class="stat-value" id="displayRemainingCapital">0</div>
+        </div>
+    </div>
+
+    <!-- Stock Input & Edit Form -->
+    <div class="card">
+        <h2 id="formTitle">Add / Edit Stock</h2>
+        <input type="hidden" id="editStockId">
+        <div class="grid-2">
+            <div>
+                <label for="stockSymbol">Stock Code (e.g. 2330, 2317)</label>
+                <input type="text" id="stockSymbol" placeholder="2330">
+            </div>
+            <div>
+                <label for="stockCategory">Category</label>
+                <select id="stockCategory">
+                    <option value="holding">Holdings (持有)</option>
+                    <option value="watchlist">Watchlist (觀察清單)</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid-2">
+            <div>
+                <label for="stockShares">Shares Held (0 for watchlist)</label>
+                <input type="number" id="stockShares" value="0" placeholder="e.g. 1000">
+            </div>
+            <div>
+                <label for="stockCostPrice">Purchase / Target Price (NTD)</label>
+                <input type="number" step="0.01" id="stockCostPrice" value="0" placeholder="e.g. 950">
+            </div>
+        </div>
+        <div class="action-btn-group">
+            <button id="saveStockBtn">Save Stock Entry</button>
+            <button id="cancelEditBtn" class="secondary" style="display:none;">Cancel Edit</button>
+        </div>
+    </div>
+
+    <!-- Holdings Section -->
+    <div class="card">
+        <h2>Holdings (持有股票)</h2>
+        <button id="fetchHoldingsBtn" class="secondary">Fetch Latest Prices via FinMind</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Shares</th>
+                    <th>Avg Cost</th>
+                    <th>Latest Price</th>
+                    <th>Market Value</th>
+                    <th>Profit / Loss</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="holdingsTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Watchlist Section -->
+    <div class="card">
+        <h2>Watchlist (觀察清單)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Target Price</th>
+                    <th>Latest Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody id="watchlistTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Gemini AI Analysis Section -->
+    <div class="card">
+        <h2>Gemini AI Market Analysis & Advisory</h2>
+        <p style="font-size: 0.9rem; color: #94a3b8;">
+            Triggers Google Gemini API with Web Search Grounding to fetch the latest stock news and financial updates, outputting Buy/Sell/Hold advice with reasoning.
+        </p>
+        <button id="runAiAnalysisBtn">Run AI Portfolio Analysis</button>
+        <div id="aiLoading" style="display:none; margin-top: 10px; color: var(--accent-color);">Analyzing portfolio and fetching web market news...</div>
+        <div id="aiResult" class="ai-output" style="margin-top: 15px;">Click button to trigger AI analysis.</div>
+    </div>
+</div>
+
+<script>
+    // State management
+    let appState = {
+        capital: 1000000,
+        geminiApiKey: '',
+        finmindToken: '',
+        stocks: []
+    };
+
+    // Load state from localStorage
+    function loadSettings() {
+        const saved = localStorage.getItem('tw_stock_app_state');
+        if (saved) {
+            try {
+                appState = Object.assign(appState, JSON.parse(saved));
+            } catch (e) {
+                console.error("Failed to parse local settings", e);
+            }
+        }
+        document.getElementById('geminiApiKey').value = appState.geminiApiKey || '';
+        document.getElementById('finmindToken').value = appState.finmindToken || '';
+        document.getElementById('displayCapital').innerText = appState.capital.toLocaleString();
+        document.getElementById('inputCapital').value = appState.capital;
+        renderTables();
+    }
+
+    // Save state to localStorage
+    function saveSettings() {
+        localStorage.setItem('tw_stock_app_state', JSON.stringify(appState));
+        renderTables();
+    }
+
+    // Save API Configurations
+    document.getElementById('saveApiKeysBtn').addEventListener('click', () => {
+        appState.geminiApiKey = document.getElementById('geminiApiKey').value.trim();
+        appState.finmindToken = document.getElementById('finmindToken').value.trim();
+        saveSettings();
+        alert("API Configurations Saved.");
+    });
+
+    // Update Capital
+    document.getElementById('updateCapitalBtn').addEventListener('click', () => {
+        const val = parseFloat(document.getElementById('inputCapital').value);
+        if (!isNaN(val) && val >= 0) {
+            appState.capital = val;
+            document.getElementById('displayCapital').innerText = appState.capital.toLocaleString();
+            saveSettings();
+        }
+    });
+
+    // Save or Update Stock
+    document.getElementById('saveStockBtn').addEventListener('click', () => {
+        const editId = document.getElementById('editStockId').value;
+        const symbol = document.getElementById('stockSymbol').value.trim();
+        const category = document.getElementById('stockCategory').value;
+        const shares = parseFloat(document.getElementById('stockShares').value) || 0;
+        const costPrice = parseFloat(document.getElementById('stockCostPrice').value) || 0;
+
+        if (!symbol) {
+            alert("Please enter stock symbol.");
+            return;
+        }
+
+        if (editId) {
+            const index = appState.stocks.findIndex(s => s.id === editId);
+            if (index !== -1) {
+                appState.stocks[index] = {
+                    ...appState.stocks[index],
+                    symbol,
+                    category,
+                    shares,
+                    costPrice
+                };
+            }
+        } else {
+            const newStock = {
+                id: Date.now().toString(),
+                symbol,
+                category,
+                shares,
+                costPrice,
+                latestPrice: 0
+            };
+            appState.stocks.push(newStock);
+        }
+
+        resetForm();
+        saveSettings();
+    });
+
+    function resetForm() {
+        document.getElementById('editStockId').value = '';
+        document.getElementById('stockSymbol').value = '';
+        document.getElementById('stockCategory').value = 'holding';
+        document.getElementById('stockShares').value = '0';
+        document.getElementById('stockCostPrice').value = '0';
+        document.getElementById('formTitle').innerText = 'Add / Edit Stock';
+        document.getElementById('cancelEditBtn').style.display = 'none';
+    }
+
+    document.getElementById('cancelEditBtn').addEventListener('click', resetForm);
+
+    function editStock(id) {
+        const stock = appState.stocks.find(s => s.id === id);
+        if (!stock) return;
+        document.getElementById('editStockId').value = stock.id;
+        document.getElementById('stockSymbol').value = stock.symbol;
+        document.getElementById('stockCategory').value = stock.category;
+        document.getElementById('stockShares').value = stock.shares;
+        document.getElementById('stockCostPrice').value = stock.costPrice;
+        document.getElementById('formTitle').innerText = 'Edit Stock';
+        document.getElementById('cancelEditBtn').style.display = 'inline-block';
+    }
+
+    function deleteStock(id) {
+        if (confirm("Are you sure you want to delete this stock?")) {
+            appState.stocks = appState.stocks.filter(s => s.id !== id);
+            saveSettings();
+        }
+    }
+
+    // Render Tables and Compute Financial Summary
+    function renderTables() {
+        const holdingsBody = document.getElementById('holdingsTableBody');
+        const watchlistBody = document.getElementById('watchlistTableBody');
+        holdingsBody.innerHTML = '';
+        watchlistBody.innerHTML = '';
+
+        let totalHoldingsValue = 0;
+
+        appState.stocks.forEach(stock => {
+            if (stock.category === 'holding') {
+                const latestPrice = stock.latestPrice || stock.costPrice || 0;
+                const marketValue = stock.shares * latestPrice;
+                const costValue = stock.shares * stock.costPrice;
+                const profit = marketValue - costValue;
+                totalHoldingsValue += marketValue;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${stock.symbol}</strong></td>
+                    <td>${stock.shares.toLocaleString()}</td>
+                    <td>${stock.costPrice}</td>
+                    <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
+                    <td>${marketValue.toLocaleString()}</td>
+                    <td class="${profit >= 0 ? 'positive' : 'negative'}">${profit.toLocaleString()}</td>
+                    <td>
+                        <button class="secondary" onclick="editStock('${stock.id}')">Edit</button>
+                        <button class="danger" onclick="deleteStock('${stock.id}')">Delete</button>
+                    </td>
+                `;
+                holdingsBody.appendChild(tr);
+            } else {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><strong>${stock.symbol}</strong></td>
+                    <td>${stock.costPrice}</td>
+                    <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
+                    <td>
+                        <button class="secondary" onclick="editStock('${stock.id}')">Edit</button>
+                        <button class="danger" onclick="deleteStock('${stock.id}')">Delete</button>
+                    </td>
+                `;
+                watchlistBody.appendChild(tr);
+            }
+        });
+
+        document.getElementById('displayHoldingsValue').innerText = totalHoldingsValue.toLocaleString();
+        const remaining = appState.capital - totalHoldingsValue;
+        document.getElementById('displayRemainingCapital').innerText = remaining.toLocaleString();
+    }
+
+    // Fetch Stock Price from FinMind API
+    async function fetchSingleStockPrice(symbol) {
+        const date = new Date();
+        date.setDate(date.getDate() - 10);
+        const startDate = date.toISOString().split('T')[0];
+        let url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${symbol}&start_date=${startDate}`;
+        if (appState.finmindToken) {
+            url += `&token=${appState.finmindToken}`;
+        }
+        try {
+            const resp = await fetch(url);
+            const json = await resp.json();
+            if (json.data && json.data.length > 0) {
+                return json.data[json.data.length - 1].close;
+            }
+        } catch (err) {
+            console.error("FinMind API error for " + symbol, err);
+        }
+        return null;
+    }
+
+    document.getElementById('fetchHoldingsBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('fetchHoldingsBtn');
+        btn.disabled = true;
+        btn.innerText = "Fetching Prices...";
+
+        for (let stock of appState.stocks) {
+            const price = await fetchSingleStockPrice(stock.symbol);
+            if (price !== null) {
+                stock.latestPrice = price;
+            }
+        }
+
+        saveSettings();
+        btn.disabled = false;
+        btn.innerText = "Fetch Latest Prices via FinMind";
+        alert("Stock prices updated from FinMind API.");
+    });
+
+    // Run AI Analysis using Gemini API with Search Grounding
+    document.getElementById('runAiAnalysisBtn').addEventListener('click', async () => {
+        if (!appState.geminiApiKey) {
+            alert("Please set your Google Gemini API Key first.");
+            return;
+        }
+
+        const aiLoading = document.getElementById('aiLoading');
+        const aiResult = document.getElementById('aiResult');
+        aiLoading.style.display = 'block';
+        aiResult.innerText = '';
+
+        const holdings = appState.stocks.filter(s => s.category === 'holding');
+        const watchlist = appState.stocks.filter(s => s.category === 'watchlist');
+
+        const promptText = `
+You are an expert Taiwanese stock market analyst.
+Analyze the following portfolio and provide actionable Buy/Sell/Hold recommendations with detailed reasons.
+
+Total Capital: NTD ${appState.capital}
+
+Current Holdings:
+${JSON.stringify(holdings, null, 2)}
+
+Watchlist:
+${JSON.stringify(watchlist, null, 2)}
+
+Instructions:
+1. Search the web for the latest financial reports, revenue numbers, and market news regarding these Taiwan stock symbols.
+2. Evaluate individual stock performance and risk exposure relative to total capital.
+3. Provide explicit recommendations (Buy, Hold, Sell, or Adjust Position) for each stock.
+4. Give concrete reasons for each recommendation based on recent data and news.
+5. Format your output clearly in Traditional Chinese.
+`;
+
+        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${appState.geminiApiKey}`;
+
+        const payload = {
+            contents: [
+                {
+                    parts: [
+                        { text: promptText }
+                    ]
+                }
+            ],
+            tools: [
+                { googleSearch: {} }
+            ]
+        };
+
+        try {
+            const resp = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await resp.json();
+            aiLoading.style.display = 'none';
+
+            if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+                const textOutput = data.candidates[0].content.parts.map(p => p.text).join('\n');
+                aiResult.innerText = textOutput;
+            } else {
+                aiResult.innerText = "Error: Unable to fetch analysis. Check API Key or console logs.";
+                console.error("Gemini API Error Response:", data);
+            }
+        } catch (err) {
+            aiLoading.style.display = 'none';
+            aiResult.innerText = "Error occurred while connecting to Gemini API: " + err.message;
+            console.error(err);
+        }
+    });
+
+    // Initialize application
+    window.onload = loadSettings;
+</script>
+</body>
+</html>
