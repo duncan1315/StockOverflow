@@ -508,23 +508,30 @@
         const watchlist = appState.stocks.filter(s => s.category === 'watchlist');
 
         const promptText = `
-You are an expert Taiwanese stock market analyst.
-Analyze the following portfolio and provide actionable Buy/Sell/Hold recommendations with detailed reasons.
+Role: Senior Portfolio Manager & Quantitative Equity Analyst (Taiwan Market).
 
-Total Capital: NTD ${appState.capital}
+Objective: Conduct a concise, data-driven portfolio analysis and provide explicit trading recommendations (Buy / Hold / Sell / Trim / Reallocate).
 
-Current Holdings:
-${JSON.stringify(holdings, null, 2)}
+Portfolio Data:
+- Total Capital: NTD ${appState.capital}
+- Current Holdings: ${JSON.stringify(holdings)}
+- Watchlist: ${JSON.stringify(watchlist)}
 
-Watchlist:
-${JSON.stringify(watchlist, null, 2)}
+Analytical Framework & Instructions:
+1. Real-Time Market Catalysts: Conduct a real-time web search for recent material events, quarterly earnings, monthly revenue reports, and macroeconomic developments relevant to each listed Taiwan stock symbol.
+2. Historical Data Benchmark: Compare current valuation metrics (e.g., P/E, P/B, Dividend Yield, YoY Revenue Growth) against historical 3-to-5 year averages and key industry peers.
+3. Supporting Evidence Requirement: Every recommendation (Buy / Hold / Sell) MUST be supported by specific quantitative data (e.g., historical valuation comparisons, revenue metrics) and explicitly cite the underlying news sources or financial data providers.
+4. Risk & Capital Management: Evaluate individual position risk exposure against total portfolio capital and unallocated balance.
 
-Instructions:
-1. Search the web for the latest financial reports, revenue numbers, and market news regarding these Taiwan stock symbols.
-2. Evaluate individual stock performance and risk exposure relative to total capital.
-3. Provide explicit recommendations (Buy, Hold, Sell, or Adjust Position) for each stock.
-4. Give concrete reasons for each recommendation based on recent data and news.
-5. Format your output clearly in Traditional Chinese.
+Output Structure Required:
+- Executive Market Brief: Macroeconomic and industry environment summary.
+- Ticker-by-Ticker Recommendation:
+  * Decision: [Buy / Hold / Sell / Trim / Reallocate]
+  * Core Thesis: Concise rationale linking recent events with fundamental trends.
+  * Quantitative Evidence & Sources: Hard data points supporting the thesis along with specific citations/data sources.
+- Capital Allocation & Risk Management Plan: Actionable adjustments to cash buffer and position weights.
+
+Language Constraint: Respond in professional Traditional Chinese.
 `;
 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${appState.geminiApiKey}`;
