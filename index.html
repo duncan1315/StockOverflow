@@ -235,11 +235,49 @@
 
         .ai-output a {
             color: var(--accent-color);
-            text-decoration: underline;
         }
 
-        .ai-output a:hover {
-            color: #7dd3fc;
+        .ai-output a.ref-link {
+            display: inline-block;
+            font-size: 0.78em;
+            font-weight: bold;
+            text-decoration: none;
+            background-color: rgba(56, 189, 248, 0.15);
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin: 0 1px;
+            white-space: nowrap;
+        }
+
+        .ai-output a.ref-link:hover {
+            background-color: rgba(56, 189, 248, 0.3);
+        }
+
+        .ref-list {
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .ref-list-title {
+            font-size: 0.8rem;
+            color: var(--muted-color);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .ref-list ol {
+            margin: 0;
+            padding-left: 20px;
+            font-size: 0.85rem;
+        }
+
+        .ref-list li {
+            margin-bottom: 4px;
+        }
+
+        .ref-list a {
+            text-decoration: underline;
         }
 
         .action-btn-group {
@@ -797,19 +835,42 @@
             .replace(/'/g, '&#39;');
     }
 
-    // Escape first, then wrap bare URLs in anchor tags so pasted text can't inject HTML
+    // Pull the hostname out for a short, readable label in the reference list
+    function extractDomain(url) {
+        const match = url.match(/^https?:\/\/([^\/?#]+)/);
+        return match ? match[1].replace(/^www\./, '') : url;
+    }
+
+    // Escape first, then replace bare URLs with short numbered reference tags.
+    // Same URL reused later in the text gets the same reference number.
     function linkify(text) {
         const escaped = escapeHtml(text);
         const urlRegex = /(https?:\/\/[^\s<>")\]]+)/g;
-        return escaped.replace(urlRegex, (url) => {
+        const refMap = new Map();
+        const refOrder = [];
+
+        const body = escaped.replace(urlRegex, (url) => {
             let trailing = '';
             const trailingMatch = url.match(/[.,;:!?)]+$/);
             if (trailingMatch) {
                 trailing = trailingMatch[0];
                 url = url.slice(0, url.length - trailing.length);
             }
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
+            if (!refMap.has(url)) {
+                refMap.set(url, refOrder.length + 1);
+                refOrder.push(url);
+            }
+            const refNum = refMap.get(url);
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ref-link">[reference${refNum}]</a>${trailing}`;
         });
+
+        if (refOrder.length === 0) return body;
+
+        const listItems = refOrder.map((url, i) => {
+            return `<li>reference${i + 1} — <a href="${url}" target="_blank" rel="noopener noreferrer">${extractDomain(url)}</a></li>`;
+        }).join('');
+
+        return `${body}<div class="ref-list"><div class="ref-list-title">Sources</div><ol>${listItems}</ol></div>`;
     }
 
     // Build a compact, pre-enriched payload so the model does not need to search for basics
