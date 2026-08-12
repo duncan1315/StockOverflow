@@ -841,37 +841,68 @@
         return match ? match[1].replace(/^www\./, '') : url;
     }
 
-    // Escape first, then replace bare URLs with short numbered reference tags.
-    // Same URL reused later in the text gets the same reference number.
-    function linkify(text) {
-        const escaped = escapeHtml(text);
-        const urlRegex = /(https?:\/\/[^\s<>")\]]+)/g;
+    // Turns raw model output into safe HTML: resolves markdown links and bare URLs into
+    // numbered [referenceN] tags (same URL reused later gets the same number), strips
+    // leftover markdown syntax (#, **, -), then escapes everything else. Placeholder
+    // tokens are used so the real HTML tags are only added after escaping, avoiding
+    // both double-escaping and the nested-link bug from linkifying inside markdown links.
+    function formatAiOutput(rawText) {
         const refMap = new Map();
         const refOrder = [];
 
-        const body = escaped.replace(urlRegex, (url) => {
+        function getRefToken(url) {
+            if (!refMap.has(url)) {
+                refMap.set(url, refOrder.length + 1);
+                refOrder.push(url);
+            }
+            return `\x01REF${refMap.get(url)}\x02`;
+        }
+
+        let text = rawText;
+
+        // Markdown links [label](url) - drop the label, keep only a reference tag
+        text = text.replace(/\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, (match, label, url) => getRefToken(url));
+
+        // Any remaining bare URLs
+        text = text.replace(/(https?:\/\/[^\s<>")\]]+)/g, (url) => {
             let trailing = '';
             const trailingMatch = url.match(/[.,;:!?)]+$/);
             if (trailingMatch) {
                 trailing = trailingMatch[0];
                 url = url.slice(0, url.length - trailing.length);
             }
-            if (!refMap.has(url)) {
-                refMap.set(url, refOrder.length + 1);
-                refOrder.push(url);
-            }
-            const refNum = refMap.get(url);
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ref-link">[reference${refNum}]</a>${trailing}`;
+            return getRefToken(url) + trailing;
         });
 
-        if (refOrder.length === 0) return body;
+        // Headings and bold become plain emphasis, hash/asterisk markers removed
+        text = text.replace(/^#{1,6}\s*(.+)$/gm, '\x01B\x02$1\x01/B\x02');
+        text = text.replace(/\*\*(.+?)\*\*/g, '\x01B\x02$1\x01/B\x02');
+
+        // Bullet markers -> a plain bullet character
+        text = text.replace(/^[*-]\s+/gm, '\u2022 ');
+
+        // Any leftover single * or _ emphasis markers, and stray horizontal rules
+        text = text.replace(/(^|[^*])\*(?!\*)([^*\n]+)\*(?!\*)/g, '$1$2');
+        text = text.replace(/_{1,2}([^_\n]+)_{1,2}/g, '$1');
+        text = text.replace(/^[-*_]{3,}$/gm, '');
+
+        let escaped = escapeHtml(text);
+        escaped = escaped.replace(/\x01B\x02/g, '<strong>').replace(/\x01\/B\x02/g, '</strong>');
+        escaped = escaped.replace(/\x01REF(\d+)\x02/g, (match, num) => {
+            const url = escapeHtml(refOrder[Number(num) - 1]);
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ref-link">[reference${num}]</a>`;
+        });
+
+        if (refOrder.length === 0) return escaped;
 
         const listItems = refOrder.map((url, i) => {
-            return `<li>reference${i + 1} — <a href="${url}" target="_blank" rel="noopener noreferrer">${extractDomain(url)}</a></li>`;
+            const safeUrl = escapeHtml(url);
+            return `<li>reference${i + 1} — <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${extractDomain(url)}</a></li>`;
         }).join('');
 
-        return `${body}<div class="ref-list"><div class="ref-list-title">Sources</div><ol>${listItems}</ol></div>`;
+        return `${escaped}<div class="ref-list"><div class="ref-list-title">Sources</div><ol>${listItems}</ol></div>`;
     }
+
 
     // Build a compact, pre-enriched payload so the model does not need to search for basics
     function toPromptStock(stock) {
@@ -912,7 +943,7 @@
 
         const promptText = `Role: Senior Portfolio Manager, Taiwan Equities.
 
-The fundamentals below (PER, PBR, dividend yield, monthly revenue YoY) are already known, do not re-derive them. Search only for recent news, earnings, and catalysts for each ticker.
+The fundamentals below (PER, PBR, dividend yield, monthly revenue YoY) are already known, do not re-derive them. Search for recent news, earnings, and catalysts for each ticker. If recent, stock-specific news is thin, broaden the search to historical precedent instead, for example how this stock or its sector performed during past Fed rate-cut cycles or similar prior macro events, and use that as supporting evidence.
 
 Capital: Total NTD ${appState.capital}, Holdings value NTD ${Math.round(totalHoldingsValue)}, Available NTD ${Math.round(remainingCapital)}
 Holdings: ${JSON.stringify(holdingsData)}
@@ -921,10 +952,12 @@ Watchlist: ${JSON.stringify(watchlistData)}
 For every stock above, output:
 - Ticker & name
 - Decision: Buy / Hold / Sell
-- Rationale: 2-3 sentences citing specific recent data or news
-- Source: at least one URL
+- Rationale: 2-3 sentences citing specific recent or historical precedent data
+- Source: at least one URL (news article, filing, or historical data source)
 
 Then add one short "Capital Allocation Plan" paragraph on how to deploy the available capital.
+
+Write in plain sentences only, no Markdown syntax (no #, *, or -).
 
 Respond in professional Traditional Chinese. Be concise, no filler.`;
 
@@ -983,7 +1016,7 @@ Respond in professional Traditional Chinese. Be concise, no filler.`;
 
                 if (data.candidates && data.candidates[0] && data.candidates[0].content) {
                     const textOutput = data.candidates[0].content.parts.map(p => p.text).join('\n');
-                    aiResult.innerHTML = linkify(textOutput);
+                    aiResult.innerHTML = formatAiOutput(textOutput);
                     success = true;
                     break;
                 } else {
