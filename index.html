@@ -224,13 +224,6 @@
             color: var(--muted-color);
         }
 
-        .fundamentals-line {
-            font-size: 0.78rem;
-            color: var(--muted-color);
-            margin-top: 4px;
-            white-space: normal;
-        }
-
         .ai-output {
             white-space: pre-wrap;
             line-height: 1.6;
@@ -238,6 +231,15 @@
             padding: 15px;
             border-radius: 6px;
             border: 1px solid var(--border-color);
+        }
+
+        .ai-output a {
+            color: var(--accent-color);
+            text-decoration: underline;
+        }
+
+        .ai-output a:hover {
+            color: #7dd3fc;
         }
 
         .action-btn-group {
@@ -284,7 +286,7 @@
             <div class="grid-2">
                 <div>
                     <label for="stockSymbol">Stock Code</label>
-                    <input type="text" id="stockSymbol" placeholder="e.g. 2330 or 2330.TW">
+                    <input type="text" id="stockSymbol" placeholder="e.g. 2330 or 2330.TW or 8299.TWO">
                 </div>
                 <div>
                     <label for="stockCategory">Category</label>
@@ -319,9 +321,14 @@
                     <thead>
                         <tr>
                             <th>Symbol & Name</th>
+                            <th>Industry</th>
                             <th>Shares</th>
                             <th>Avg Cost</th>
                             <th>Latest Price</th>
+                            <th>PER</th>
+                            <th>PBR</th>
+                            <th>Div Yield</th>
+                            <th>Rev YoY</th>
                             <th>Market Value</th>
                             <th>Profit / Loss</th>
                             <th>Actions</th>
@@ -340,8 +347,13 @@
                     <thead>
                         <tr>
                             <th>Symbol & Name</th>
+                            <th>Industry</th>
                             <th>Target Price</th>
                             <th>Latest Price</th>
+                            <th>PER</th>
+                            <th>PBR</th>
+                            <th>Div Yield</th>
+                            <th>Rev YoY</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -659,24 +671,20 @@
         }
     }
 
-    function fundamentalsLine(stock) {
-        const parts = [];
-        if (stock.industry) parts.push(stock.industry);
-        if (stock.per != null && !isNaN(stock.per)) parts.push(`PER ${Number(stock.per).toFixed(1)}`);
-        if (stock.pbr != null && !isNaN(stock.pbr)) parts.push(`PBR ${Number(stock.pbr).toFixed(1)}`);
-        if (stock.dividendYield != null && !isNaN(stock.dividendYield)) parts.push(`Yield ${Number(stock.dividendYield).toFixed(1)}%`);
-        if (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) {
-            const sign = stock.revenueYoy >= 0 ? '+' : '';
-            parts.push(`Rev YoY ${sign}${stock.revenueYoy.toFixed(1)}%`);
-        }
-        return parts.length ? `<div class="fundamentals-line">${parts.join(' &bull; ')}</div>` : '';
-    }
-
     function nameCell(stock) {
         const displayName = stock.stockName ? `${stock.symbol} (${stock.stockName})` : stock.symbol;
         const marketLabel = getMarketLabel(stock.market);
         const badge = marketLabel ? `<span class="market-badge ${getMarketBadgeClass(stock.market)}">${marketLabel}</span>` : '';
-        return `<strong>${displayName}</strong>${badge}${fundamentalsLine(stock)}`;
+        return `<strong>${displayName}</strong>${badge}`;
+    }
+
+    function formatMetric(val, decimals) {
+        return (val == null || isNaN(val)) ? '-' : Number(val).toFixed(decimals);
+    }
+
+    function formatPercent(val) {
+        if (val == null || isNaN(val)) return '-';
+        return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
     }
 
     function renderTables() {
@@ -688,6 +696,13 @@
         let totalHoldingsValue = 0;
 
         appState.stocks.forEach(stock => {
+            const industryText = stock.industry || '-';
+            const perText = formatMetric(stock.per, 1);
+            const pbrText = formatMetric(stock.pbr, 1);
+            const yieldText = (stock.dividendYield == null || isNaN(stock.dividendYield)) ? '-' : `${Number(stock.dividendYield).toFixed(1)}%`;
+            const revYoyText = formatPercent(stock.revenueYoy);
+            const revYoyClass = (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) ? (stock.revenueYoy >= 0 ? 'positive' : 'negative') : '';
+
             if (stock.category === 'holding') {
                 const latestPrice = stock.latestPrice || stock.costPrice || 0;
                 const marketValue = stock.shares * latestPrice;
@@ -698,9 +713,14 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${nameCell(stock)}</td>
+                    <td>${industryText}</td>
                     <td>${stock.shares.toLocaleString()}</td>
                     <td>${stock.costPrice}</td>
                     <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
+                    <td>${perText}</td>
+                    <td>${pbrText}</td>
+                    <td>${yieldText}</td>
+                    <td class="${revYoyClass}">${revYoyText}</td>
                     <td>${marketValue.toLocaleString()}</td>
                     <td class="${profit >= 0 ? 'positive' : 'negative'}">${profit.toLocaleString()}</td>
                     <td>
@@ -713,8 +733,13 @@
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${nameCell(stock)}</td>
+                    <td>${industryText}</td>
                     <td>${stock.costPrice}</td>
                     <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
+                    <td>${perText}</td>
+                    <td>${pbrText}</td>
+                    <td>${yieldText}</td>
+                    <td class="${revYoyClass}">${revYoyText}</td>
                     <td>
                         <button class="secondary" onclick="editStock('${stock.id}')">Edit</button>
                         <button class="danger" onclick="deleteStock('${stock.id}')">Delete</button>
@@ -762,6 +787,30 @@
         btn.innerText = "Fetch Latest Data & Fundamentals";
         alert("Stock data updated from FinMind API.");
     });
+
+    function escapeHtml(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // Escape first, then wrap bare URLs in anchor tags so pasted text can't inject HTML
+    function linkify(text) {
+        const escaped = escapeHtml(text);
+        const urlRegex = /(https?:\/\/[^\s<>")\]]+)/g;
+        return escaped.replace(urlRegex, (url) => {
+            let trailing = '';
+            const trailingMatch = url.match(/[.,;:!?)]+$/);
+            if (trailingMatch) {
+                trailing = trailingMatch[0];
+                url = url.slice(0, url.length - trailing.length);
+            }
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${trailing}`;
+        });
+    }
 
     // Build a compact, pre-enriched payload so the model does not need to search for basics
     function toPromptStock(stock) {
@@ -873,7 +922,7 @@ Respond in professional Traditional Chinese. Be concise, no filler.`;
 
                 if (data.candidates && data.candidates[0] && data.candidates[0].content) {
                     const textOutput = data.candidates[0].content.parts.map(p => p.text).join('\n');
-                    aiResult.innerText = textOutput;
+                    aiResult.innerHTML = linkify(textOutput);
                     success = true;
                     break;
                 } else {
