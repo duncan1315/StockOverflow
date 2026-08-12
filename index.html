@@ -841,12 +841,71 @@
         return match ? match[1].replace(/^www\./, '') : url;
     }
 
+    // Gemini's grounding citation offsets are UTF-8 byte positions, not JS string indices.
+    // Every Chinese character is 3 bytes but 1 JS string unit, so offsets must be converted
+    // or citations land in the wrong place in Traditional Chinese text.
+    function byteOffsetToStringIndex(text, byteOffset) {
+        if (byteOffset <= 0) return 0;
+        const bytes = new TextEncoder().encode(text);
+        if (byteOffset >= bytes.length) return text.length;
+        return new TextDecoder('utf-8').decode(bytes.slice(0, byteOffset)).length;
+    }
+
+    // Gemini's search grounding returns real source links as structured metadata rather
+    // than writing them into the response text (the model often just names the outlet,
+    // e.g. "Source: Cnyes", with no URL). This inserts [ref](url) markers at the matching
+    // text positions so formatAiOutput can turn them into real reference links.
+    function applyGroundingCitations(text, candidate) {
+        const metadata = candidate && candidate.groundingMetadata;
+        const supports = metadata && metadata.groundingSupports;
+        const chunks = metadata && metadata.groundingChunks;
+        if (!supports || !supports.length || !chunks || !chunks.length) return text;
+
+        const inserts = supports
+            .map(support => {
+                const byteEnd = support.segment && support.segment.endIndex;
+                const chunkIndices = support.groundingChunkIndices;
+                if (byteEnd === undefined || !chunkIndices || !chunkIndices.length) return null;
+                const links = chunkIndices
+                    .map(i => chunks[i] && chunks[i].web && chunks[i].web.uri)
+                    .filter(Boolean)
+                    .map(uri => `[ref](${uri})`)
+                    .join('');
+                if (!links) return null;
+                return { charIndex: byteOffsetToStringIndex(text, byteEnd), links };
+            })
+            .filter(Boolean)
+            .sort((a, b) => b.charIndex - a.charIndex);
+
+        let result = text;
+        for (const insert of inserts) {
+            result = result.slice(0, insert.charIndex) + ' ' + insert.links + result.slice(insert.charIndex);
+        }
+        return result;
+    }
+
+    // Maps each grounding source URL to Google's own title (e.g. a real outlet name like
+    // "鉅亨網"), used for the Sources list instead of parsing a Google redirect URL's domain.
+    function buildGroundingTitleMap(candidate) {
+        const chunks = candidate && candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks;
+        const map = {};
+        if (!chunks) return map;
+        chunks.forEach(chunk => {
+            if (chunk && chunk.web && chunk.web.uri) {
+                map[chunk.web.uri] = chunk.web.title || extractDomain(chunk.web.uri);
+            }
+        });
+        return map;
+    }
+
     // Turns raw model output into safe HTML: resolves markdown links and bare URLs into
     // numbered [referenceN] tags (same URL reused later gets the same number), strips
     // leftover markdown syntax (#, **, -), then escapes everything else. Placeholder
     // tokens are used so the real HTML tags are only added after escaping, avoiding
     // both double-escaping and the nested-link bug from linkifying inside markdown links.
-    function formatAiOutput(rawText) {
+    // titleMap (optional) supplies a real outlet name per URL from grounding metadata.
+    function formatAiOutput(rawText, titleMap) {
+        titleMap = titleMap || {};
         const refMap = new Map();
         const refOrder = [];
 
@@ -889,15 +948,18 @@
         let escaped = escapeHtml(text);
         escaped = escaped.replace(/\x01B\x02/g, '<strong>').replace(/\x01\/B\x02/g, '</strong>');
         escaped = escaped.replace(/\x01REF(\d+)\x02/g, (match, num) => {
-            const url = escapeHtml(refOrder[Number(num) - 1]);
-            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="ref-link">[reference${num}]</a>`;
+            const url = refOrder[Number(num) - 1];
+            const safeUrl = escapeHtml(url);
+            const label = escapeHtml(titleMap[url] || extractDomain(url));
+            return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="ref-link" title="${label}">[reference${num}]</a>`;
         });
 
         if (refOrder.length === 0) return escaped;
 
         const listItems = refOrder.map((url, i) => {
             const safeUrl = escapeHtml(url);
-            return `<li>reference${i + 1} — <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${extractDomain(url)}</a></li>`;
+            const label = escapeHtml(titleMap[url] || extractDomain(url));
+            return `<li>reference${i + 1} — <a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${label}</a></li>`;
         }).join('');
 
         return `${escaped}<div class="ref-list"><div class="ref-list-title">Sources</div><ol>${listItems}</ol></div>`;
@@ -953,7 +1015,7 @@ For every stock above, output:
 - Ticker & name
 - Decision: Buy / Hold / Sell
 - Rationale: 2-3 sentences citing specific recent or historical precedent data
-- Source: at least one URL (news article, filing, or historical data source)
+- Cite the source outlet or report for each claim (the app attaches the actual link automatically)
 
 Then add one short "Capital Allocation Plan" paragraph on how to deploy the available capital.
 
@@ -1015,8 +1077,11 @@ Respond in professional Traditional Chinese. Be concise, no filler.`;
                 }
 
                 if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-                    const textOutput = data.candidates[0].content.parts.map(p => p.text).join('\n');
-                    aiResult.innerHTML = formatAiOutput(textOutput);
+                    const candidate = data.candidates[0];
+                    const rawText = candidate.content.parts.map(p => p.text).join('\n');
+                    const textWithCitations = applyGroundingCitations(rawText, candidate);
+                    const titleMap = buildGroundingTitleMap(candidate);
+                    aiResult.innerHTML = formatAiOutput(textWithCitations, titleMap);
                     success = true;
                     break;
                 } else {
