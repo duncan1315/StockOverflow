@@ -14,6 +14,7 @@
             --success-color: #22c55e;
             --danger-color: #ef4444;
             --warning-color: #f59e0b;
+            --muted-color: #94a3b8;
         }
 
         body {
@@ -65,7 +66,7 @@
             display: block;
             margin-bottom: 6px;
             font-size: 0.9rem;
-            color: #94a3b8;
+            color: var(--muted-color);
         }
 
         input, select, button {
@@ -77,6 +78,7 @@
             color: #fff;
             box-sizing: border-box;
             margin-bottom: 12px;
+            font-size: 0.95rem;
         }
 
         button {
@@ -107,6 +109,60 @@
             background-color: #dc2626;
         }
 
+        .hint-text {
+            font-size: 0.78rem;
+            color: #64748b;
+            margin-top: -8px;
+            margin-bottom: 12px;
+        }
+
+        /* Header and page navigation */
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .page-nav {
+            display: flex;
+            gap: 8px;
+        }
+
+        .nav-btn {
+            width: auto;
+            margin-bottom: 0;
+            background-color: transparent;
+            border: 1px solid var(--border-color);
+            color: var(--muted-color);
+            padding: 8px 18px;
+        }
+
+        .nav-btn:hover {
+            background-color: var(--card-bg);
+        }
+
+        .nav-btn.active {
+            background-color: #2563eb;
+            color: #fff;
+            border-color: #2563eb;
+        }
+
+        .page {
+            display: none;
+        }
+
+        .page.active {
+            display: block;
+        }
+
+        /* Tables */
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -117,10 +173,15 @@
             text-align: left;
             padding: 10px;
             border-bottom: 1px solid var(--border-color);
+            white-space: nowrap;
+        }
+
+        td:first-child {
+            white-space: normal;
         }
 
         th {
-            color: #94a3b8;
+            color: var(--muted-color);
             font-size: 0.85rem;
             text-transform: uppercase;
         }
@@ -136,6 +197,38 @@
 
         .negative {
             color: var(--success-color);
+        }
+
+        .market-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: bold;
+            vertical-align: middle;
+        }
+
+        .market-badge-twse {
+            background-color: rgba(56, 189, 248, 0.15);
+            color: var(--accent-color);
+        }
+
+        .market-badge-tpex {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: var(--warning-color);
+        }
+
+        .market-badge-other {
+            background-color: rgba(148, 163, 184, 0.15);
+            color: var(--muted-color);
+        }
+
+        .fundamentals-line {
+            font-size: 0.78rem;
+            color: var(--muted-color);
+            margin-top: 4px;
+            white-space: normal;
         }
 
         .ai-output {
@@ -160,116 +253,140 @@
 <body>
 
 <div class="container">
-    <h1>Taiwan Stock Portfolio & AI Advisory</h1>
-
-    <div class="card">
-        <h2>API Configurations</h2>
-        <div class="grid-2">
-            <div>
-                <label for="geminiApiKey">Google Gemini API Key</label>
-                <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key">
-            </div>
-            <div>
-                <label for="finmindToken">FinMind API Token</label>
-                <input type="password" id="finmindToken" placeholder="Enter FinMind Token if available">
-            </div>
-        </div>
-        <button id="saveApiKeysBtn" class="secondary">Save API Configurations</button>
+    <div class="app-header">
+        <h1>Taiwan Stock Portfolio & AI Advisory</h1>
+        <nav class="page-nav">
+            <button type="button" class="nav-btn active" data-page="dashboardPage" id="navDashboardBtn">Dashboard</button>
+            <button type="button" class="nav-btn" data-page="settingsPage" id="navSettingsBtn">Settings</button>
+        </nav>
     </div>
 
-    <div class="grid-3">
+    <div id="dashboardPage" class="page active">
+
+        <div class="grid-3">
+            <div class="card">
+                <label>Total Available Capital (NTD)</label>
+                <div class="stat-value" id="displayCapital">0</div>
+            </div>
+            <div class="card">
+                <label>Current Holdings Value</label>
+                <div class="stat-value" id="displayHoldingsValue">0</div>
+            </div>
+            <div class="card">
+                <label>Remaining Unallocated Capital</label>
+                <div class="stat-value" id="displayRemainingCapital">0</div>
+            </div>
+        </div>
+
         <div class="card">
-            <label>Total Available Capital (NTD)</label>
-            <div class="stat-value" id="displayCapital">0</div>
-            <div style="margin-top: 10px;">
-                <input type="number" id="inputCapital" placeholder="Set Capital Budget">
-                <button id="updateCapitalBtn">Update Capital</button>
+            <h2 id="formTitle">Add / Edit Stock</h2>
+            <input type="hidden" id="editStockId">
+            <div class="grid-2">
+                <div>
+                    <label for="stockSymbol">Stock Code</label>
+                    <input type="text" id="stockSymbol" placeholder="e.g. 2330 or 2330.TW">
+                </div>
+                <div>
+                    <label for="stockCategory">Category</label>
+                    <select id="stockCategory">
+                        <option value="holding">Holdings</option>
+                        <option value="watchlist">Watchlist</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grid-2">
+                <div>
+                    <label for="stockShares">Shares Held</label>
+                    <input type="number" id="stockShares" value="0" placeholder="e.g. 1000">
+                </div>
+                <div>
+                    <label for="stockCostPrice">Target Price (NTD)</label>
+                    <input type="number" step="0.01" id="stockCostPrice" value="0" placeholder="e.g. 950">
+                </div>
+            </div>
+            <div class="hint-text">A .TW or .TWO suffix is optional. The listed / OTC market is detected automatically from FinMind.</div>
+            <div class="action-btn-group">
+                <button id="saveStockBtn">Save Stock Entry</button>
+                <button id="cancelEditBtn" class="secondary" style="display:none;">Cancel Edit</button>
             </div>
         </div>
+
         <div class="card">
-            <label>Current Holdings Value</label>
-            <div class="stat-value" id="displayHoldingsValue">0</div>
+            <h2>Holdings</h2>
+            <button id="fetchHoldingsBtn" class="secondary">Fetch Latest Data & Fundamentals</button>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol & Name</th>
+                            <th>Shares</th>
+                            <th>Avg Cost</th>
+                            <th>Latest Price</th>
+                            <th>Market Value</th>
+                            <th>Profit / Loss</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="holdingsTableBody">
+                    </tbody>
+                </table>
+            </div>
         </div>
+
         <div class="card">
-            <label>Remaining Unallocated Capital</label>
-            <div class="stat-value" id="displayRemainingCapital">0</div>
-        </div>
-    </div>
-
-    <div class="card">
-        <h2 id="formTitle">Add / Edit Stock</h2>
-        <input type="hidden" id="editStockId">
-        <div class="grid-2">
-            <div>
-                <label for="stockSymbol">Stock Code</label>
-                <input type="text" id="stockSymbol" placeholder="e.g. 2330">
-            </div>
-            <div>
-                <label for="stockCategory">Category</label>
-                <select id="stockCategory">
-                    <option value="holding">Holdings</option>
-                    <option value="watchlist">Watchlist</option>
-                </select>
+            <h2>Watchlist</h2>
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Symbol & Name</th>
+                            <th>Target Price</th>
+                            <th>Latest Price</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="watchlistTableBody">
+                    </tbody>
+                </table>
             </div>
         </div>
-        <div class="grid-2">
-            <div>
-                <label for="stockShares">Shares Held</label>
-                <input type="number" id="stockShares" value="0" placeholder="e.g. 1000">
-            </div>
-            <div>
-                <label for="stockCostPrice">Target Price (NTD)</label>
-                <input type="number" step="0.01" id="stockCostPrice" value="0" placeholder="e.g. 950">
-            </div>
+
+        <div class="card">
+            <h2>Gemini AI Market Analysis</h2>
+            <button id="runAiAnalysisBtn">Run AI Portfolio Analysis</button>
+            <div id="aiLoading" style="display:none; margin-top: 10px; color: var(--accent-color);">Analyzing portfolio and fetching web market news...</div>
+            <div id="aiResult" class="ai-output" style="margin-top: 15px;">Click button to trigger AI analysis.</div>
         </div>
-        <div class="action-btn-group">
-            <button id="saveStockBtn">Save Stock Entry</button>
-            <button id="cancelEditBtn" class="secondary" style="display:none;">Cancel Edit</button>
+
+    </div>
+
+    <div id="settingsPage" class="page">
+
+        <div class="card">
+            <h2>API Configuration</h2>
+            <div class="grid-2">
+                <div>
+                    <label for="geminiApiKey">Google Gemini API Key</label>
+                    <input type="password" id="geminiApiKey" placeholder="Enter Gemini API Key">
+                </div>
+                <div>
+                    <label for="finmindToken">FinMind API Token</label>
+                    <input type="password" id="finmindToken" placeholder="Enter FinMind Token if available">
+                    <div class="hint-text">Optional. Raises the FinMind rate limit from 300 to 600 requests/hour.</div>
+                </div>
+            </div>
+            <button id="saveApiKeysBtn" class="secondary">Save API Configuration</button>
         </div>
+
+        <div class="card">
+            <h2>Capital Budget</h2>
+            <label for="inputCapital">Total Available Capital (NTD)</label>
+            <input type="number" id="inputCapital" placeholder="Set Capital Budget">
+            <button id="updateCapitalBtn">Update Capital</button>
+        </div>
+
     </div>
 
-    <div class="card">
-        <h2>Holdings</h2>
-        <button id="fetchHoldingsBtn" class="secondary">Fetch Latest Data via FinMind</button>
-        <table>
-            <thead>
-                <tr>
-                    <th>Symbol & Name</th>
-                    <th>Shares</th>
-                    <th>Avg Cost</th>
-                    <th>Latest Price</th>
-                    <th>Market Value</th>
-                    <th>Profit / Loss</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="holdingsTableBody">
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card">
-        <h2>Watchlist</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>Symbol & Name</th>
-                    <th>Target Price</th>
-                    <th>Latest Price</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="watchlistTableBody">
-            </tbody>
-        </table>
-    </div>
-
-    <div class="card">
-        <h2>Gemini AI Market Analysis</h2>
-        <button id="runAiAnalysisBtn">Run AI Portfolio Analysis</button>
-        <div id="aiLoading" style="display:none; margin-top: 10px; color: var(--accent-color);">Analyzing portfolio and fetching web market news...</div>
-        <div id="aiResult" class="ai-output" style="margin-top: 15px;">Click button to trigger AI analysis.</div>
-    </div>
 </div>
 
 <script>
@@ -301,11 +418,22 @@
         renderTables();
     }
 
+    // Page navigation
+    function switchPage(pageId) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById(pageId).classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.querySelector(`.nav-btn[data-page="${pageId}"]`).classList.add('active');
+    }
+
+    document.getElementById('navDashboardBtn').addEventListener('click', () => switchPage('dashboardPage'));
+    document.getElementById('navSettingsBtn').addEventListener('click', () => switchPage('settingsPage'));
+
     document.getElementById('saveApiKeysBtn').addEventListener('click', () => {
         appState.geminiApiKey = document.getElementById('geminiApiKey').value.trim();
         appState.finmindToken = document.getElementById('finmindToken').value.trim();
         saveSettings();
-        alert("API Configurations Saved.");
+        alert("API Configuration Saved.");
     });
 
     document.getElementById('updateCapitalBtn').addEventListener('click', () => {
@@ -317,40 +445,147 @@
         }
     });
 
-    async function fetchSingleStockName(symbol) {
-        let url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockInfo&data_id=${symbol}`;
-        if (appState.finmindToken) {
-            url += `&token=${appState.finmindToken}`;
-        }
+    // Strip an optional .TW / .TWO suffix, since FinMind data_id is the bare code
+    function normalizeSymbol(raw) {
+        return raw.trim().toUpperCase().replace(/\.(TWO|TW)$/, '');
+    }
+
+    // twse -> listed (.TW), tpex -> OTC (.TWO); anything else is left unsuffixed
+    function getMarketLabel(type) {
+        if (!type) return '';
+        if (type === 'twse') return 'TWSE';
+        if (type === 'tpex') return 'TPEx';
+        if (type === 'emerging') return 'Emerging';
+        return type.toUpperCase();
+    }
+
+    function getMarketBadgeClass(type) {
+        if (type === 'twse') return 'market-badge-twse';
+        if (type === 'tpex') return 'market-badge-tpex';
+        return 'market-badge-other';
+    }
+
+    function getTickerSuffix(type) {
+        if (type === 'twse') return '.TW';
+        if (type === 'tpex') return '.TWO';
+        return '';
+    }
+
+    function daysAgoISO(days) {
+        const d = new Date();
+        d.setDate(d.getDate() - days);
+        return d.toISOString().split('T')[0];
+    }
+
+    function finmindUrl(params) {
+        const url = new URL('https://api.finmindtrade.com/api/v4/data');
+        Object.keys(params).forEach(key => url.searchParams.set(key, params[key]));
+        return url.toString();
+    }
+
+    function finmindFetchOptions() {
+        return appState.finmindToken
+            ? { headers: { 'Authorization': `Bearer ${appState.finmindToken}` } }
+            : {};
+    }
+
+    async function fetchStockInfo(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockInfo', data_id: symbol });
         try {
-            const resp = await fetch(url);
+            const resp = await fetch(url, finmindFetchOptions());
             const json = await resp.json();
             if (json.data && json.data.length > 0) {
-                return json.data[0].stock_name;
+                const row = json.data[0];
+                return {
+                    name: row.stock_name || '',
+                    industry: row.industry_category || '',
+                    market: row.type || ''
+                };
             }
         } catch (err) {
-            console.error("FinMind API error for info " + symbol, err);
+            console.error("FinMind info error for " + symbol, err);
         }
-        return "";
+        return null;
+    }
+
+    async function fetchStockPrice(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockPrice', data_id: symbol, start_date: daysAgoISO(10) });
+        try {
+            const resp = await fetch(url, finmindFetchOptions());
+            const json = await resp.json();
+            if (json.data && json.data.length > 0) {
+                return json.data[json.data.length - 1].close;
+            }
+        } catch (err) {
+            console.error("FinMind price error for " + symbol, err);
+        }
+        return null;
+    }
+
+    async function fetchStockPER(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockPER', data_id: symbol, start_date: daysAgoISO(30) });
+        try {
+            const resp = await fetch(url, finmindFetchOptions());
+            const json = await resp.json();
+            if (json.data && json.data.length > 0) {
+                const row = json.data[json.data.length - 1];
+                return { per: row.PER, pbr: row.PBR, dividendYield: row.dividend_yield };
+            }
+        } catch (err) {
+            console.error("FinMind PER error for " + symbol, err);
+        }
+        return null;
+    }
+
+    async function fetchStockMonthRevenue(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockMonthRevenue', data_id: symbol, start_date: daysAgoISO(450) });
+        try {
+            const resp = await fetch(url, finmindFetchOptions());
+            const json = await resp.json();
+            if (json.data && json.data.length > 1) {
+                const rows = json.data;
+                const latest = rows[rows.length - 1];
+                const prior = rows.find(r => r.revenue_month === latest.revenue_month && r.revenue_year === latest.revenue_year - 1);
+                if (prior && prior.revenue > 0) {
+                    const yoy = ((latest.revenue - prior.revenue) / prior.revenue) * 100;
+                    return { yoy, month: latest.revenue_month, year: latest.revenue_year };
+                }
+            }
+        } catch (err) {
+            console.error("FinMind revenue error for " + symbol, err);
+        }
+        return null;
+    }
+
+    async function fetchAllStockData(symbol) {
+        const [info, price, per, revenue] = await Promise.all([
+            fetchStockInfo(symbol),
+            fetchStockPrice(symbol),
+            fetchStockPER(symbol),
+            fetchStockMonthRevenue(symbol)
+        ]);
+        return { info, price, per, revenue };
     }
 
     document.getElementById('saveStockBtn').addEventListener('click', async () => {
         const editId = document.getElementById('editStockId').value;
-        const symbol = document.getElementById('stockSymbol').value.trim();
+        const symbolInput = document.getElementById('stockSymbol').value;
         const category = document.getElementById('stockCategory').value;
         const shares = parseFloat(document.getElementById('stockShares').value) || 0;
         const costPrice = parseFloat(document.getElementById('stockCostPrice').value) || 0;
 
-        if (!symbol) {
+        if (!symbolInput.trim()) {
             alert("Please enter stock symbol.");
             return;
         }
+
+        const symbol = normalizeSymbol(symbolInput);
 
         const btn = document.getElementById('saveStockBtn');
         btn.disabled = true;
         btn.innerText = "Saving...";
 
-        let fetchedName = await fetchSingleStockName(symbol);
+        const info = await fetchStockInfo(symbol);
 
         if (editId) {
             const index = appState.stocks.findIndex(s => s.id === editId);
@@ -358,7 +593,9 @@
                 appState.stocks[index] = {
                     ...appState.stocks[index],
                     symbol,
-                    stockName: fetchedName || appState.stocks[index].stockName,
+                    stockName: info ? info.name : appState.stocks[index].stockName,
+                    industry: info ? info.industry : appState.stocks[index].industry,
+                    market: info ? info.market : appState.stocks[index].market,
                     category,
                     shares,
                     costPrice
@@ -368,11 +605,19 @@
             const newStock = {
                 id: Date.now().toString(),
                 symbol,
-                stockName: fetchedName,
+                stockName: info ? info.name : '',
+                industry: info ? info.industry : '',
+                market: info ? info.market : '',
                 category,
                 shares,
                 costPrice,
-                latestPrice: 0
+                latestPrice: 0,
+                per: null,
+                pbr: null,
+                dividendYield: null,
+                revenueYoy: null,
+                revenueMonth: null,
+                revenueYear: null
             };
             appState.stocks.push(newStock);
         }
@@ -414,6 +659,26 @@
         }
     }
 
+    function fundamentalsLine(stock) {
+        const parts = [];
+        if (stock.industry) parts.push(stock.industry);
+        if (stock.per != null && !isNaN(stock.per)) parts.push(`PER ${Number(stock.per).toFixed(1)}`);
+        if (stock.pbr != null && !isNaN(stock.pbr)) parts.push(`PBR ${Number(stock.pbr).toFixed(1)}`);
+        if (stock.dividendYield != null && !isNaN(stock.dividendYield)) parts.push(`Yield ${Number(stock.dividendYield).toFixed(1)}%`);
+        if (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) {
+            const sign = stock.revenueYoy >= 0 ? '+' : '';
+            parts.push(`Rev YoY ${sign}${stock.revenueYoy.toFixed(1)}%`);
+        }
+        return parts.length ? `<div class="fundamentals-line">${parts.join(' &bull; ')}</div>` : '';
+    }
+
+    function nameCell(stock) {
+        const displayName = stock.stockName ? `${stock.symbol} (${stock.stockName})` : stock.symbol;
+        const marketLabel = getMarketLabel(stock.market);
+        const badge = marketLabel ? `<span class="market-badge ${getMarketBadgeClass(stock.market)}">${marketLabel}</span>` : '';
+        return `<strong>${displayName}</strong>${badge}${fundamentalsLine(stock)}`;
+    }
+
     function renderTables() {
         const holdingsBody = document.getElementById('holdingsTableBody');
         const watchlistBody = document.getElementById('watchlistTableBody');
@@ -423,7 +688,6 @@
         let totalHoldingsValue = 0;
 
         appState.stocks.forEach(stock => {
-            const displayName = stock.stockName ? `${stock.symbol} (${stock.stockName})` : stock.symbol;
             if (stock.category === 'holding') {
                 const latestPrice = stock.latestPrice || stock.costPrice || 0;
                 const marketValue = stock.shares * latestPrice;
@@ -433,7 +697,7 @@
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${displayName}</strong></td>
+                    <td>${nameCell(stock)}</td>
                     <td>${stock.shares.toLocaleString()}</td>
                     <td>${stock.costPrice}</td>
                     <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
@@ -448,7 +712,7 @@
             } else {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${displayName}</strong></td>
+                    <td>${nameCell(stock)}</td>
                     <td>${stock.costPrice}</td>
                     <td>${stock.latestPrice ? stock.latestPrice : 'N/A'}</td>
                     <td>
@@ -465,49 +729,56 @@
         document.getElementById('displayRemainingCapital').innerText = remaining.toLocaleString();
     }
 
-    async function fetchSingleStockPrice(symbol) {
-        const date = new Date();
-        date.setDate(date.getDate() - 10);
-        const startDate = date.toISOString().split('T')[0];
-        let url = `https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockPrice&data_id=${symbol}&start_date=${startDate}`;
-        if (appState.finmindToken) {
-            url += `&token=${appState.finmindToken}`;
-        }
-        try {
-            const resp = await fetch(url);
-            const json = await resp.json();
-            if (json.data && json.data.length > 0) {
-                return json.data[json.data.length - 1].close;
-            }
-        } catch (err) {
-            console.error("FinMind API error for " + symbol, err);
-        }
-        return null;
-    }
-
     document.getElementById('fetchHoldingsBtn').addEventListener('click', async () => {
         const btn = document.getElementById('fetchHoldingsBtn');
         btn.disabled = true;
         btn.innerText = "Fetching Data...";
 
         for (let stock of appState.stocks) {
-            const price = await fetchSingleStockPrice(stock.symbol);
+            const { info, price, per, revenue } = await fetchAllStockData(stock.symbol);
+
+            if (info) {
+                stock.stockName = info.name || stock.stockName;
+                stock.industry = info.industry || stock.industry;
+                stock.market = info.market || stock.market;
+            }
             if (price !== null) {
                 stock.latestPrice = price;
             }
-            if (!stock.stockName) {
-                const name = await fetchSingleStockName(stock.symbol);
-                if (name) {
-                    stock.stockName = name;
-                }
+            if (per) {
+                stock.per = per.per;
+                stock.pbr = per.pbr;
+                stock.dividendYield = per.dividendYield;
+            }
+            if (revenue) {
+                stock.revenueYoy = revenue.yoy;
+                stock.revenueMonth = revenue.month;
+                stock.revenueYear = revenue.year;
             }
         }
 
         saveSettings();
         btn.disabled = false;
-        btn.innerText = "Fetch Latest Data via FinMind";
+        btn.innerText = "Fetch Latest Data & Fundamentals";
         alert("Stock data updated from FinMind API.");
     });
+
+    // Build a compact, pre-enriched payload so the model does not need to search for basics
+    function toPromptStock(stock) {
+        return {
+            ticker: stock.symbol + getTickerSuffix(stock.market),
+            name: stock.stockName || null,
+            market: getMarketLabel(stock.market) || null,
+            industry: stock.industry || null,
+            shares: stock.shares,
+            costPrice: stock.costPrice,
+            latestPrice: stock.latestPrice || null,
+            per: stock.per ?? null,
+            pbr: stock.pbr ?? null,
+            dividendYieldPct: stock.dividendYield ?? null,
+            revenueYoyPct: (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) ? Number(stock.revenueYoy.toFixed(1)) : null
+        };
+    }
 
     document.getElementById('runAiAnalysisBtn').addEventListener('click', async () => {
         if (!appState.geminiApiKey) {
@@ -523,29 +794,29 @@
         const holdings = appState.stocks.filter(s => s.category === 'holding');
         const watchlist = appState.stocks.filter(s => s.category === 'watchlist');
 
-        const promptText = `
-Role: Senior Portfolio Manager & Quantitative Equity Analyst (Taiwan Market).
+        const totalHoldingsValue = holdings.reduce((sum, s) => sum + s.shares * (s.latestPrice || s.costPrice || 0), 0);
+        const remainingCapital = appState.capital - totalHoldingsValue;
 
-Objective: Conduct a concise, data-driven analysis for each individual stock. Provide explicit trading recommendations.
+        const holdingsData = holdings.map(toPromptStock);
+        const watchlistData = watchlist.map(toPromptStock);
 
-Portfolio Data:
-- Total Capital: NTD ${appState.capital}
-- Current Holdings: ${JSON.stringify(holdings)}
-- Watchlist: ${JSON.stringify(watchlist)}
+        const promptText = `Role: Senior Portfolio Manager, Taiwan Equities.
 
-Analytical Framework & Instructions:
-1. Focus on Individual Stocks: Conduct web searches for recent events, earnings, and revenue reports for each listed Taiwan stock.
-2. Quantitative Evidence: Every recommendation MUST be supported by specific data.
-3. Strict Exclusions: Do NOT include an Executive Market Brief (執行市場摘要) or a Capital Allocation & Risk Management Plan (資金配置與風險管理計畫).
-4. Output Structure:
-   - Ticker-by-Ticker Analysis:
-     * Company: [Symbol] [Stock Name]
-     * Decision: [Buy / Hold / Sell / Trim]
-     * Rationale: Concise rationale linking recent data with historical benchmarks.
-     * Sources: Specific citations supporting the rationale, MUST include the exact source URL.
+The fundamentals below (PER, PBR, dividend yield, monthly revenue YoY) are already known, do not re-derive them. Search only for recent news, earnings, and catalysts for each ticker.
 
-Language Constraint: Respond in professional Traditional Chinese.
-`;
+Capital: Total NTD ${appState.capital}, Holdings value NTD ${Math.round(totalHoldingsValue)}, Available NTD ${Math.round(remainingCapital)}
+Holdings: ${JSON.stringify(holdingsData)}
+Watchlist: ${JSON.stringify(watchlistData)}
+
+For every stock above, output:
+- Ticker & name
+- Decision: Buy / Hold / Sell
+- Rationale: 2-3 sentences citing specific recent data or news
+- Source: at least one URL
+
+Then add one short "Capital Allocation Plan" paragraph on how to deploy the available capital.
+
+Respond in professional Traditional Chinese. Be concise, no filler.`;
 
         const payload = {
             contents: [
@@ -611,7 +882,7 @@ Language Constraint: Respond in professional Traditional Chinese.
             } catch (err) {
                 lastErrorMessage = err.message;
                 console.error(`Error with model ${currentModel}:`, err);
-                
+
                 if (isQuotaExceededError(err)) {
                     console.warn(`Quota exceeded for ${currentModel}. Trying next model...`);
                     continue;
