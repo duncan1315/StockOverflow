@@ -354,6 +354,7 @@
         <div class="card">
             <h2>Holdings</h2>
             <button id="fetchHoldingsBtn" class="secondary">Fetch Latest Data & Fundamentals</button>
+            <div class="hint-text">Inst. Net = latest-day net buy/sell across foreign, trust, and dealer, in board lots (張). Margin Δ = day-over-day change in margin purchase balance, in board lots (張).</div>
             <div class="table-wrapper">
                 <table>
                     <thead>
@@ -367,6 +368,8 @@
                             <th>PBR</th>
                             <th>Div Yield</th>
                             <th>Rev YoY</th>
+                            <th>Inst. Net</th>
+                            <th>Margin Δ</th>
                             <th>Market Value</th>
                             <th>Profit / Loss</th>
                             <th>Actions</th>
@@ -392,6 +395,8 @@
                             <th>PBR</th>
                             <th>Div Yield</th>
                             <th>Rev YoY</th>
+                            <th>Inst. Net</th>
+                            <th>Margin Δ</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -607,14 +612,59 @@
         return null;
     }
 
+    // Net buy/sell across all institutional investor categories (foreign, investment trust,
+    // dealer) for the latest trading day, converted from shares to board lots (張).
+    // Uses the wide dataset (one row per day, one column pair per category) so the categories
+    // don't need to be summed across multiple rows client-side.
+    async function fetchInstitutionalNet(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockInstitutionalInvestorsBuySellWide', data_id: symbol, start_date: daysAgoISO(10) });
+        try {
+            const resp = await fetch(url, finmindFetchOptions());
+            const json = await resp.json();
+            if (json.data && json.data.length > 0) {
+                const row = json.data[json.data.length - 1];
+                let netShares = 0;
+                for (const key in row) {
+                    if (typeof row[key] !== 'number') continue;
+                    if (key.endsWith('_buy')) netShares += row[key];
+                    else if (key.endsWith('_sell')) netShares -= row[key];
+                }
+                return { netLots: netShares / 1000, date: row.date };
+            }
+        } catch (err) {
+            console.error("FinMind institutional investors error for " + symbol, err);
+        }
+        return null;
+    }
+
+    // Day-over-day change in margin purchase balance (融資餘額增減, in board lots), a common
+    // retail-leverage / chip indicator in Taiwan market commentary.
+    async function fetchMarginDelta(symbol) {
+        const url = finmindUrl({ dataset: 'TaiwanStockMarginPurchaseShortSale', data_id: symbol, start_date: daysAgoISO(10) });
+        try {
+            const resp = await fetch(url, finmindFetchOptions());
+            const json = await resp.json();
+            if (json.data && json.data.length > 0) {
+                const row = json.data[json.data.length - 1];
+                if (row.MarginPurchaseTodayBalance != null && row.MarginPurchaseYesterdayBalance != null) {
+                    return { deltaLots: row.MarginPurchaseTodayBalance - row.MarginPurchaseYesterdayBalance, date: row.date };
+                }
+            }
+        } catch (err) {
+            console.error("FinMind margin purchase error for " + symbol, err);
+        }
+        return null;
+    }
+
+    // Fetched sequentially (rather than in parallel) to keep FinMind request bursts small.
     async function fetchAllStockData(symbol) {
-        const [info, price, per, revenue] = await Promise.all([
-            fetchStockInfo(symbol),
-            fetchStockPrice(symbol),
-            fetchStockPER(symbol),
-            fetchStockMonthRevenue(symbol)
-        ]);
-        return { info, price, per, revenue };
+        const info = await fetchStockInfo(symbol);
+        const price = await fetchStockPrice(symbol);
+        const per = await fetchStockPER(symbol);
+        const revenue = await fetchStockMonthRevenue(symbol);
+        const institutional = await fetchInstitutionalNet(symbol);
+        const margin = await fetchMarginDelta(symbol);
+        return { info, price, per, revenue, institutional, margin };
     }
 
     document.getElementById('saveStockBtn').addEventListener('click', async () => {
@@ -667,7 +717,9 @@
                 dividendYield: null,
                 revenueYoy: null,
                 revenueMonth: null,
-                revenueYear: null
+                revenueYear: null,
+                instNet: null,
+                marginDelta: null
             };
             appState.stocks.push(newStock);
         }
@@ -725,6 +777,13 @@
         return `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
     }
 
+    // Rounds to whole lots (張) and adds a +/- sign
+    function formatSignedLots(val) {
+        if (val == null || isNaN(val)) return '-';
+        const rounded = Math.round(val);
+        return `${rounded >= 0 ? '+' : ''}${rounded.toLocaleString()}`;
+    }
+
     function renderTables() {
         const holdingsBody = document.getElementById('holdingsTableBody');
         const watchlistBody = document.getElementById('watchlistTableBody');
@@ -740,6 +799,10 @@
             const yieldText = (stock.dividendYield == null || isNaN(stock.dividendYield)) ? '-' : `${Number(stock.dividendYield).toFixed(1)}%`;
             const revYoyText = formatPercent(stock.revenueYoy);
             const revYoyClass = (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) ? (stock.revenueYoy >= 0 ? 'positive' : 'negative') : '';
+            const instNetText = formatSignedLots(stock.instNet);
+            const instNetClass = (stock.instNet != null && !isNaN(stock.instNet)) ? (stock.instNet >= 0 ? 'positive' : 'negative') : '';
+            const marginDeltaText = formatSignedLots(stock.marginDelta);
+            const marginDeltaClass = (stock.marginDelta != null && !isNaN(stock.marginDelta)) ? (stock.marginDelta >= 0 ? 'positive' : 'negative') : '';
 
             if (stock.category === 'holding') {
                 const latestPrice = stock.latestPrice || stock.costPrice || 0;
@@ -759,6 +822,8 @@
                     <td>${pbrText}</td>
                     <td>${yieldText}</td>
                     <td class="${revYoyClass}">${revYoyText}</td>
+                    <td class="${instNetClass}">${instNetText}</td>
+                    <td class="${marginDeltaClass}">${marginDeltaText}</td>
                     <td>${marketValue.toLocaleString()}</td>
                     <td class="${profit >= 0 ? 'positive' : 'negative'}">${profit.toLocaleString()}</td>
                     <td>
@@ -778,6 +843,8 @@
                     <td>${pbrText}</td>
                     <td>${yieldText}</td>
                     <td class="${revYoyClass}">${revYoyText}</td>
+                    <td class="${instNetClass}">${instNetText}</td>
+                    <td class="${marginDeltaClass}">${marginDeltaText}</td>
                     <td>
                         <button class="secondary" onclick="editStock('${stock.id}')">Edit</button>
                         <button class="danger" onclick="deleteStock('${stock.id}')">Delete</button>
@@ -798,7 +865,7 @@
         btn.innerText = "Fetching Data...";
 
         for (let stock of appState.stocks) {
-            const { info, price, per, revenue } = await fetchAllStockData(stock.symbol);
+            const { info, price, per, revenue, institutional, margin } = await fetchAllStockData(stock.symbol);
 
             if (info) {
                 stock.stockName = info.name || stock.stockName;
@@ -817,6 +884,12 @@
                 stock.revenueYoy = revenue.yoy;
                 stock.revenueMonth = revenue.month;
                 stock.revenueYear = revenue.year;
+            }
+            if (institutional) {
+                stock.instNet = institutional.netLots;
+            }
+            if (margin) {
+                stock.marginDelta = margin.deltaLots;
             }
         }
 
@@ -979,7 +1052,9 @@
             per: stock.per ?? null,
             pbr: stock.pbr ?? null,
             dividendYieldPct: stock.dividendYield ?? null,
-            revenueYoyPct: (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) ? Number(stock.revenueYoy.toFixed(1)) : null
+            revenueYoyPct: (stock.revenueYoy != null && !isNaN(stock.revenueYoy)) ? Number(stock.revenueYoy.toFixed(1)) : null,
+            institutionalNetLots: (stock.instNet != null && !isNaN(stock.instNet)) ? Math.round(stock.instNet) : null,
+            marginBalanceDeltaLots: (stock.marginDelta != null && !isNaN(stock.marginDelta)) ? Math.round(stock.marginDelta) : null
         };
     }
 
@@ -1005,7 +1080,7 @@
 
         const promptText = `Role: Senior Portfolio Manager, Taiwan Equities.
 
-The fundamentals below (PER, PBR, dividend yield, monthly revenue YoY) are already known, do not re-derive them. Search for recent news, earnings, and catalysts for each ticker. If recent, stock-specific news is thin, broaden the search to historical precedent instead, for example how this stock or its sector performed during past Fed rate-cut cycles or similar prior macro events, and use that as supporting evidence.
+The fundamentals below (PER, PBR, dividend yield, monthly revenue YoY, institutional investor net buy/sell in lots, and margin balance change in lots) are already known, do not re-derive them. Factor institutionalNetLots and marginBalanceDeltaLots into the decision as chip/flow signals. Search for recent news, earnings, and catalysts for each ticker. If recent, stock-specific news is thin, broaden the search to historical precedent instead, for example how this stock or its sector performed during past Fed rate-cut cycles or similar prior macro events, and use that as supporting evidence.
 
 Capital: Total NTD ${appState.capital}, Holdings value NTD ${Math.round(totalHoldingsValue)}, Available NTD ${Math.round(remainingCapital)}
 Holdings: ${JSON.stringify(holdingsData)}
